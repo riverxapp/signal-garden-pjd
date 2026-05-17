@@ -1,0 +1,55 @@
+name: Init DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: "Source repository in owner/repo format (defaults to this repo)"
+        required: false
+        default: ""
+      source_ref:
+        description: "Source git ref (branch, tag, or commit SHA)"
+        required: false
+        default: "main"
+      database_url:
+        description: "Postgres connection string"
+        required: true
+      migrate_attempts:
+        description: "Max retry attempts for Drizzle migrate"
+        required: false
+        default: "8"
+      retry_delay_ms:
+        description: "Base retry delay in ms"
+        required: false
+        default: "3000"
+
+jobs:
+  init-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run Drizzle migrations
+        run: node scripts/db-init.js
+        env:
+          DATABASE_URL: ${{ inputs.database_url }}
+          DB_MIGRATE_ATTEMPTS: ${{ inputs.migrate_attempts }}
+          DB_MIGRATE_RETRY_MS: ${{ inputs.retry_delay_ms }}
